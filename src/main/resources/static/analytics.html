@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Analytics — ExpenseTracker</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+    <div class="sidebar-logo">💳 Expense<span>Tracker</span></div>
+    <nav>
+        <a class="nav-link" href="index.html">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+            Dashboard
+        </a>
+        <a class="nav-link" href="expenses.html">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            Expenses
+        </a>
+        <a class="nav-link" href="budgets.html">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Budgets
+        </a>
+        <a class="nav-link" href="analytics.html">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            Analytics
+        </a>
+    </nav>
+</aside>
+
+<!-- Main -->
+<div class="main">
+    <div class="topbar">
+        <h1>Analytics</h1>
+        <div class="month-bar">
+            <select id="selMonth"></select>
+            <select id="selYear"></select>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="grid-2">
+            <!-- Pie -->
+            <div class="card">
+                <div class="card-title">Spending by Category (This Month)</div>
+                <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
+            </div>
+
+            <!-- Bar -->
+            <div class="card">
+                <div class="card-title">Monthly Spending (Last 6 Months)</div>
+                <div class="chart-wrap"><canvas id="barChart"></canvas></div>
+            </div>
+        </div>
+
+        <!-- Category breakdown table -->
+        <div class="card">
+            <div class="card-title">Category Breakdown</div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Category</th><th style="text-align:right">Amount</th><th style="text-align:right">% of Total</th></tr></thead>
+                    <tbody id="catBody"></tbody>
+                </table>
+                <div id="catEmpty" class="empty" style="display:none">No data for this month.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="toast"></div>
+<script src="app.js"></script>
+<script>
+    const COLORS = ['#4f46e5','#10b981','#f59e0b','#ef4444','#06b6d4','#8b5cf6','#ec4899','#f97316','#64748b','#14b8a6'];
+    let pieChart, barChart;
+
+    async function loadAnalytics(month, year) {
+        try {
+            const [categories, monthly] = await Promise.all([
+                api.getBudgetComparisons ? fetch(`/api/analytics/categories?month=${month}&year=${year}`).then(r => r.json()) : [],
+                api.getMonthly(6)
+            ]);
+
+            // Pie chart
+            if (pieChart) pieChart.destroy();
+            pieChart = new Chart(document.getElementById('pieChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: categories.map(c => CATEGORY_LABELS[c.category] || c.category),
+                    datasets: [{
+                        data: categories.map(c => c.total),
+                        backgroundColor: COLORS,
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    plugins: { legend: { position: 'right', labels: { font: { family: 'Inter' } } } },
+                    cutout: '58%',
+                    maintainAspectRatio: false
+                }
+            });
+
+            // Bar chart
+            if (barChart) barChart.destroy();
+            barChart = new Chart(document.getElementById('barChart'), {
+                type: 'bar',
+                data: {
+                    labels: monthly.map(m => m.monthLabel),
+                    datasets: [{
+                        label: 'Total Spending',
+                        data: monthly.map(m => m.total),
+                        backgroundColor: '#4f46e5',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { callback: v => '$' + v } } },
+                    maintainAspectRatio: false
+                }
+            });
+
+            // Category table
+            const tbody = document.getElementById('catBody');
+            const empty = document.getElementById('catEmpty');
+            if (categories.length === 0) {
+                tbody.innerHTML = '';
+                empty.style.display = 'block';
+            } else {
+                empty.style.display = 'none';
+                tbody.innerHTML = categories.map((c, i) => `
+          <tr>
+            <td>
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${COLORS[i % COLORS.length]};margin-right:8px"></span>
+              <span class="badge b-${c.category}">${CATEGORY_LABELS[c.category]}</span>
+            </td>
+            <td style="text-align:right;font-weight:600">${formatCurrency(c.total)}</td>
+            <td style="text-align:right;color:var(--muted)">${c.percentage.toFixed(1)}%</td>
+          </tr>`).join('');
+            }
+        } catch (err) {
+            toast('Failed to load analytics: ' + err.message, 'error');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initMonthSelector((m, y) => loadAnalytics(m, y));
+        loadAnalytics(getSelectedMonth(), getSelectedYear());
+    });
+</script>
+</body>
+</html>

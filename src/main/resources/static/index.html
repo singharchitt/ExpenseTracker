@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard — ExpenseTracker</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+    <div class="sidebar-logo">💳 Expense<span>Tracker</span></div>
+    <nav>
+        <a class="nav-link" href="index.html">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+            Dashboard
+        </a>
+        <a class="nav-link" href="expenses.html">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            Expenses
+        </a>
+        <a class="nav-link" href="budgets.html">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Budgets
+        </a>
+        <a class="nav-link" href="analytics.html">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            Analytics
+        </a>
+    </nav>
+</aside>
+
+<!-- Main -->
+<div class="main">
+    <div class="topbar">
+        <h1>Dashboard</h1>
+        <div class="month-bar">
+            <select id="selMonth"></select>
+            <select id="selYear"></select>
+        </div>
+    </div>
+
+    <div class="content">
+        <!-- Stat Cards -->
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-label">This Month</div>
+                <div class="stat-value" id="statMonth">—</div>
+                <div class="stat-sub" id="statMonthCount">0 expenses</div>
+            </div>
+            <div class="stat-card green">
+                <div class="stat-label">Last Month</div>
+                <div class="stat-value" id="statLast">—</div>
+            </div>
+            <div class="stat-card yellow">
+                <div class="stat-label">This Year</div>
+                <div class="stat-value" id="statYear">—</div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-title">Spending by Category</div>
+                <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
+            </div>
+            <div class="card">
+                <div class="card-title">Monthly Trend (last 6 months)</div>
+                <div class="chart-wrap"><canvas id="barChart"></canvas></div>
+            </div>
+        </div>
+
+        <!-- Budget overview -->
+        <div class="card">
+            <div class="card-title">Budget Overview</div>
+            <div id="budgetList"><div class="spinner"></div></div>
+        </div>
+
+        <!-- Recent expenses -->
+        <div class="card">
+            <div class="card-title">Recent Expenses</div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Title</th><th>Category</th><th>Date</th><th style="text-align:right">Amount</th></tr></thead>
+                    <tbody id="recentBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="toast"></div>
+<script src="app.js"></script>
+<script>
+    let pieChart, barChart;
+
+    async function loadDashboard(month, year) {
+        try {
+            const data = await api.getDashboard(month, year);
+
+            // Stats
+            document.getElementById('statMonth').textContent      = formatCurrency(data.totalThisMonth);
+            document.getElementById('statMonthCount').textContent = `${data.totalExpensesThisMonth} expenses`;
+            document.getElementById('statLast').textContent       = formatCurrency(data.totalLastMonth);
+            document.getElementById('statYear').textContent       = formatCurrency(data.totalThisYear);
+
+            // Pie chart
+            const catData = data.categoryBreakdown || [];
+            if (pieChart) pieChart.destroy();
+            pieChart = new Chart(document.getElementById('pieChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: catData.map(c => CATEGORY_LABELS[c.category] || c.category),
+                    datasets: [{ data: catData.map(c => c.total), backgroundColor: ['#4f46e5','#10b981','#f59e0b','#ef4444','#06b6d4','#8b5cf6','#ec4899','#f97316','#64748b','#14b8a6'] }]
+                },
+                options: { plugins: { legend: { position: 'right' } }, cutout: '60%', maintainAspectRatio: false }
+            });
+
+            // Bar chart
+            const monthly = data.monthlyTotals || [];
+            if (barChart) barChart.destroy();
+            barChart = new Chart(document.getElementById('barChart'), {
+                type: 'bar',
+                data: {
+                    labels: monthly.map(m => m.monthLabel),
+                    datasets: [{ label: 'Spending', data: monthly.map(m => m.total), backgroundColor: '#4f46e5', borderRadius: 6 }]
+                },
+                options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } }, maintainAspectRatio: false }
+            });
+
+            // Budget overview
+            const budgets = data.budgetComparisons || [];
+            const budgetList = document.getElementById('budgetList');
+            if (budgets.length === 0) {
+                budgetList.innerHTML = '<p class="empty">No budgets set for this month. <a href="budgets.html">Set one →</a></p>';
+            } else {
+                budgetList.innerHTML = budgets.map(b => {
+                    const pct = Math.min(b.percentageUsed, 100).toFixed(0);
+                    const cls = b.overBudget ? 'over' : b.percentageUsed >= 75 ? 'warn' : 'safe';
+                    return `
+            <div style="margin-bottom:16px">
+              <div style="display:flex;justify-content:space-between;font-size:.875rem">
+                <strong>${CATEGORY_LABELS[b.category]}</strong>
+                <span>${formatCurrency(b.actualSpent)} / ${formatCurrency(b.budgetLimit)}</span>
+              </div>
+              <div class="progress"><div class="progress-bar ${cls}" style="width:${pct}%"></div></div>
+              <div style="font-size:.75rem;color:var(--muted);margin-top:3px">${pct}% used${b.overBudget ? ' — <span style="color:var(--danger)">Over budget!</span>' : ''}</div>
+            </div>`;
+                }).join('');
+            }
+
+            // Recent expenses
+            const tbody = document.getElementById('recentBody');
+            const recent = (data.categoryBreakdown && []) || [];
+            // Load recent expenses separately
+            const expenses = await api.getExpenses({ month, year });
+            const top5 = expenses.slice(0, 5);
+            tbody.innerHTML = top5.length === 0
+                ? '<tr><td colspan="4" class="empty">No expenses this month</td></tr>'
+                : top5.map(e => `
+            <tr>
+              <td>${e.title}</td>
+              <td><span class="badge b-${e.category}">${CATEGORY_LABELS[e.category]}</span></td>
+              <td style="color:var(--muted)">${formatDate(e.date)}</td>
+              <td style="text-align:right;font-weight:600">${formatCurrency(e.amount)}</td>
+            </tr>`).join('');
+
+        } catch (err) {
+            toast('Failed to load dashboard: ' + err.message, 'error');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initMonthSelector((m, y) => loadDashboard(m, y));
+        loadDashboard(getSelectedMonth(), getSelectedYear());
+    });
+</script>
+</body>
+</html>

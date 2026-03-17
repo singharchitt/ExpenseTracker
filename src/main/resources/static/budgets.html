@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Budgets — ExpenseTracker</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+    <div class="sidebar-logo">💳 Expense<span>Tracker</span></div>
+    <nav>
+        <a class="nav-link" href="index.html">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+            Dashboard
+        </a>
+        <a class="nav-link" href="expenses.html">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            Expenses
+        </a>
+        <a class="nav-link" href="budgets.html">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Budgets
+        </a>
+        <a class="nav-link" href="analytics.html">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            Analytics
+        </a>
+    </nav>
+</aside>
+
+<!-- Main -->
+<div class="main">
+    <div class="topbar">
+        <h1>Budgets</h1>
+        <div class="month-bar">
+            <select id="selMonth"></select>
+            <select id="selYear"></select>
+        </div>
+    </div>
+
+    <div class="content">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <p style="color:var(--muted);font-size:.875rem">Set monthly spending limits per category</p>
+            <button class="btn btn-primary" onclick="openAdd()">+ Set Budget</button>
+        </div>
+
+        <!-- Budget vs Actual cards -->
+        <div id="budgetCards"><div class="spinner"></div></div>
+
+        <!-- Current budgets table -->
+        <div class="card" style="margin-top:20px">
+            <div class="card-title">All Budgets This Month</div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Category</th><th style="text-align:right">Limit</th><th style="text-align:right">Actions</th></tr></thead>
+                    <tbody id="budgetTableBody"></tbody>
+                </table>
+                <div id="budgetEmpty" class="empty" style="display:none">No budgets set. Click "Set Budget" to add one.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Set Budget Modal -->
+<div class="overlay" id="budgetModal">
+    <div class="modal">
+        <div class="modal-head">
+            <h2>Set Budget</h2>
+            <button class="modal-close" onclick="closeModal('budgetModal')">✕</button>
+        </div>
+        <div class="form-group">
+            <label>Category *</label>
+            <select id="bCategory"></select>
+        </div>
+        <div class="form-group">
+            <label>Monthly Limit *</label>
+            <input type="number" id="bLimit" min="0.01" step="0.01" placeholder="e.g. 500.00" />
+        </div>
+        <p style="font-size:.8rem;color:var(--muted);margin-top:4px">If a budget already exists for this category and month, it will be updated.</p>
+        <div class="modal-foot">
+            <button class="btn btn-outline" onclick="closeModal('budgetModal')">Cancel</button>
+            <button class="btn btn-primary" id="budgetSaveBtn" onclick="saveBudget()">Save Budget</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast"></div>
+<script src="app.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const sel = document.getElementById('bCategory');
+        CATEGORIES.forEach(c => sel.appendChild(new Option(CATEGORY_LABELS[c], c)));
+        initMonthSelector((m, y) => loadBudgets(m, y));
+        loadBudgets(getSelectedMonth(), getSelectedYear());
+    });
+
+    async function loadBudgets(month, year) {
+        try {
+            const [budgets, comparisons] = await Promise.all([
+                api.getBudgets(month, year),
+                api.getBudgetComparisons(month, year)
+            ]);
+
+            // Progress cards
+            const cardsEl = document.getElementById('budgetCards');
+            if (comparisons.length === 0) {
+                cardsEl.innerHTML = '<p class="empty">No budget comparisons yet. Add expenses and set budgets.</p>';
+            } else {
+                cardsEl.innerHTML = `<div class="grid-2">${comparisons.map(b => {
+                    const pct = Math.min(b.percentageUsed, 100).toFixed(0);
+                    const cls = b.overBudget ? 'over' : b.percentageUsed >= 75 ? 'warn' : 'safe';
+                    const remaining = b.budgetLimit - b.actualSpent;
+                    return `
+            <div class="card" style="margin-bottom:0">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <strong>${CATEGORY_LABELS[b.category]}</strong>
+                <span style="font-size:.8rem;color:var(--muted)">${pct}%</span>
+              </div>
+              <div class="progress"><div class="progress-bar ${cls}" style="width:${pct}%"></div></div>
+              <div style="display:flex;justify-content:space-between;font-size:.8rem;color:var(--muted);margin-top:6px">
+                <span>Spent: <strong style="color:var(--text)">${formatCurrency(b.actualSpent)}</strong></span>
+                <span>Limit: <strong style="color:var(--text)">${formatCurrency(b.budgetLimit)}</strong></span>
+              </div>
+              ${b.overBudget
+                        ? `<p style="font-size:.78rem;color:var(--danger);margin-top:4px">⚠️ Over budget by ${formatCurrency(-remaining)}</p>`
+                        : `<p style="font-size:.78rem;color:var(--success);margin-top:4px">${formatCurrency(remaining)} remaining</p>`
+                    }
+            </div>`;
+                }).join('')}</div>`;
+            }
+
+            // Table
+            const tbody = document.getElementById('budgetTableBody');
+            const empty = document.getElementById('budgetEmpty');
+            if (budgets.length === 0) {
+                tbody.innerHTML = '';
+                empty.style.display = 'block';
+            } else {
+                empty.style.display = 'none';
+                tbody.innerHTML = budgets.map(b => `
+          <tr>
+            <td><span class="badge b-${b.category}">${CATEGORY_LABELS[b.category]}</span></td>
+            <td style="text-align:right;font-weight:600">${formatCurrency(b.budgetLimit)}</td>
+            <td style="text-align:right">
+              <button class="btn btn-danger btn-sm" onclick="deleteBudget(${b.id})">Delete</button>
+            </td>
+          </tr>`).join('');
+            }
+        } catch (err) {
+            toast('Failed to load budgets: ' + err.message, 'error');
+        }
+    }
+
+    function openAdd() {
+        document.getElementById('bLimit').value = '';
+        document.getElementById('bCategory').value = 'FOOD';
+        openModal('budgetModal');
+    }
+
+    async function saveBudget() {
+        const category   = document.getElementById('bCategory').value;
+        const budgetLimit = parseFloat(document.getElementById('bLimit').value);
+        const month = getSelectedMonth();
+        const year  = getSelectedYear();
+
+        if (!budgetLimit || budgetLimit <= 0) { toast('Enter a valid budget limit', 'error'); return; }
+
+        const btn = document.getElementById('budgetSaveBtn');
+        btn.disabled = true; btn.textContent = 'Saving...';
+
+        try {
+            await api.setBudget({ category, budgetLimit, month, year });
+            toast('Budget saved!');
+            closeModal('budgetModal');
+            loadBudgets(month, year);
+        } catch (err) {
+            toast('Error: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false; btn.textContent = 'Save Budget';
+        }
+    }
+
+    async function deleteBudget(id) {
+        if (!confirm('Delete this budget?')) return;
+        try {
+            await api.deleteBudget(id);
+            toast('Budget deleted');
+            loadBudgets(getSelectedMonth(), getSelectedYear());
+        } catch (err) {
+            toast('Error: ' + err.message, 'error');
+        }
+    }
+</script>
+</body>
+</html>
