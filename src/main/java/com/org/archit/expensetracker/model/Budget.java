@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "budgets",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"category", "month", "year"}))
+        uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "category", "month", "year"}))
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -18,6 +18,10 @@ public class Budget {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     @NotNull(message = "Category is required")
     @Enumerated(EnumType.STRING)

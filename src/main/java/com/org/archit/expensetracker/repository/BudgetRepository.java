@@ -11,12 +11,11 @@ import java.util.Optional;
 @Repository
 public interface BudgetRepository extends JpaRepository<Budget, Long> {
 
-    // Find all budgets for a specific month/year
-    List<Budget> findByMonthAndYear(int month, int year);
+    Optional<Budget> findByIdAndUserId(Long id, Long userId);
 
-    // Find a specific budget by category + month + year
-    Optional<Budget> findByCategoryAndMonthAndYear(Category category, int month, int year);
+    List<Budget> findByUserIdAndMonthAndYear(Long userId, int month, int year);
 
-    // Find all budgets for a category across all months
-    List<Budget> findByCategoryOrderByYearDescMonthDesc(Category category);
+    Optional<Budget> findByUserIdAndCategoryAndMonthAndYear(Long userId, Category category, int month, int year);
+
+    List<Budget> findByUserIdAndCategoryOrderByYearDescMonthDesc(Long userId, Category category);
 }

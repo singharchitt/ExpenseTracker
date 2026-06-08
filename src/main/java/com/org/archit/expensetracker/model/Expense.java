@@ -19,6 +19,10 @@ public class Expense {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
     @NotBlank(message = "Title is required")
     @Size(max = 255, message = "Title must be less than 255 characters")
     @Column(nullable = false)

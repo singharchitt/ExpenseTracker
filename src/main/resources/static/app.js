@@ -1,3 +1,21 @@
+// ── Auth guard ────────────────────────────────────────────────
+function getToken() { return localStorage.getItem('jwt_token'); }
+
+function requireAuth() {
+    if (!getToken()) window.location.href = 'login.html';
+}
+
+function logout() {
+    localStorage.removeItem('jwt_token');
+    localStorage.removeItem('user_name');
+    window.location.href = 'login.html';
+}
+
+// Run on every page except login
+if (!location.pathname.endsWith('login.html')) {
+    requireAuth();
+}
+
 // ── Config ────────────────────────────────────────────────────
 const BASE = '/api';
 
@@ -6,12 +24,23 @@ function getSelectedMonth() { return parseInt(sessionStorage.getItem('month') ||
 function getSelectedYear()  { return parseInt(sessionStorage.getItem('year')  || new Date().getFullYear()); }
 function saveMonth(m, y)    { sessionStorage.setItem('month', m); sessionStorage.setItem('year', y); }
 
-// ── API helpers ───────────────────────────────────────────────
+// ── API helpers (JWT attached to every request) ───────────────
 async function apiFetch(path, options = {}) {
+    const token = getToken();
     const res = await fetch(BASE + path, {
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         ...options,
     });
+
+    // Token expired or invalid → kick to login
+    if (res.status === 401 || res.status === 403) {
+        logout();
+        return;
+    }
+
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || `HTTP ${res.status}`);
@@ -40,7 +69,7 @@ const api = {
 
 // ── Formatting ────────────────────────────────────────────────
 function formatCurrency(amount) {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0);
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount || 0);
 }
 
 function formatDate(dateStr) {
@@ -76,13 +105,17 @@ function toast(msg, type = 'success') {
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-// ── Sidebar active link ───────────────────────────────────────
+// ── Sidebar active link + user name + logout button ───────────
 document.addEventListener('DOMContentLoaded', () => {
     const page = location.pathname.split('/').pop() || 'index.html';
     document.querySelectorAll('.nav-link').forEach(link => {
         const href = link.getAttribute('href').split('/').pop();
         if (href === page) link.classList.add('active');
     });
+
+    // Show user name in sidebar if element exists
+    const userEl = document.getElementById('sidebarUser');
+    if (userEl) userEl.textContent = localStorage.getItem('user_name') || '';
 });
 
 // ── Month selector bootstrap ──────────────────────────────────
@@ -91,14 +124,12 @@ function initMonthSelector(onChangeCb) {
     const ySel = document.getElementById('selYear');
     if (!mSel || !ySel) return;
 
-    // Populate months
     MONTH_NAMES.forEach((name, i) => {
         const opt = new Option(name, i + 1);
         mSel.appendChild(opt);
     });
     mSel.value = getSelectedMonth();
 
-    // Populate years
     const curYear = new Date().getFullYear();
     for (let y = curYear - 2; y <= curYear + 1; y++) {
         ySel.appendChild(new Option(y, y));
