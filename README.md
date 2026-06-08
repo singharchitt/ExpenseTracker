@@ -18,7 +18,7 @@ A full-stack expense tracking application built with Spring Boot and Vanilla Jav
 ## Getting Started
 
 ```bash
-git clone https://github.com/ssingharchitt/ExpenseTracker.git
+git clone https://github.com/singharchitt/ExpenseTracker.git
 cd ExpenseTracker
 ```
 
